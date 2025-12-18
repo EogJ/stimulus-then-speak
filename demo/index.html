@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stimulus Speak Then Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+    }
+
+    .demo-container {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #f8f8f8;
+      border-radius: 8px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ccc;
+      transition: background 0.2s;
+    }
+
+    .speak-then-awake .status-dot {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    .status-text {
+      font-weight: 500;
+    }
+
+    .indicator {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .commands {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .command-btn {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border: 2px solid #e5e5e5;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .command-btn:hover {
+      border-color: #3b82f6;
+      background: #f8faff;
+    }
+
+    .command-btn:active,
+    .command-btn.triggered {
+      border-color: #22c55e;
+      background: #f0fdf4;
+    }
+
+    .command-btn .label {
+      font-weight: 500;
+    }
+
+    .command-btn .voice-hint {
+      font-size: 13px;
+      color: #888;
+      font-style: italic;
+    }
+
+    .log {
+      margin-top: 24px;
+      padding: 16px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #22c55e;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      margin: 4px 0;
+    }
+
+    .log-entry.error {
+      color: #ef4444;
+    }
+
+    .instructions {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fefce8;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .instructions strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Stimulus Speak Then</h1>
+  <p class="subtitle">Voice-controlled Stimulus actions with wake word detection</p>
+
+  <div class="demo-container"
+       data-controller="speak-then demo"
+       data-speak-then-confidence-value="0.5"
+       data-speak-then-sleep-value="5000"
+       data-speak-then-models-path-value="/models"
+       data-action="speak-then:wake->demo#onWake speak-then:sleep->demo#onSleep speak-then:error->demo#onError">
+
+    <div class="status">
+      <div class="status-dot"></div>
+      <span class="status-text">Say "Hey Jarvis" to wake</span>
+      <span class="indicator" data-speak-then-target="indicator"></span>
+    </div>
+
+    <div class="commands">
+      <button class="command-btn"
+              data-action="click->demo#next speak:next->demo#next"
+              data-demo-target="btn">
+        <span class="label">Next</span>
+        <span class="voice-hint">say "next"</span>
+      </button>
+
+      <button class="command-btn"
+              data-action="click->demo#previous speak:previous->demo#previous"
+              data-demo-target="btn">
+        <span class="label">Previous</span>
+        <span class="voice-hint">say "previous"</span>
+      </button>
+
+      <button class="command-btn"
+              data-action="click->demo#play speak:play_music->demo#play"
+              data-demo-target="btn">
+        <span class="label">Play Music</span>
+        <span class="voice-hint">say "play music"</span>
+      </button>
+
+      <button class="command-btn"
+              data-action="click->demo#stop speak:stop->demo#stop"
+              data-demo-target="btn">
+        <span class="label">Stop</span>
+        <span class="voice-hint">say "stop"</span>
+      </button>
+    </div>
+
+    <div class="log" data-demo-target="log"></div>
+  </div>
+
+  <div class="instructions">
+    <strong>How to use:</strong>
+    1. Allow microphone access when prompted<br>
+    2. Say "Hey Jarvis" to activate voice commands<br>
+    3. When the green light is on, speak a command<br>
+    4. After 5 seconds of silence, it goes back to sleep
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus@3.2.2/dist/stimulus.js",
+      "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/esm/ort.min.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import { Application, Controller } from "@hotwired/stimulus"
+    import * as ort from "onnxruntime-web"
+
+    // Configure ONNX runtime before any inference sessions are created
+    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/"
+    ort.env.wasm.numThreads = 1
+
+    // Dynamic import to ensure WASM config is set first
+    const { default: SpeakThenController } = await import("../src/controller.js")
+
+    const application = Application.start()
+    application.register("speak-then", SpeakThenController)
+
+    class DemoController extends Controller {
+      static targets = ["log", "btn"]
+
+      connect() {
+        this.log("Demo ready - say 'Hey Jarvis' to start")
+      }
+
+      onWake() {
+        this.element.querySelector(".status-text").textContent = "Listening for commands..."
+        this.log("Wake word detected!")
+      }
+
+      onSleep() {
+        this.element.querySelector(".status-text").textContent = "Say 'Hey Jarvis' to wake"
+        this.log("Going to sleep...")
+      }
+
+      onError(event) {
+        this.log(`Error: ${event.detail.error.message}`, true)
+      }
+
+      next(event) {
+        this.triggerButton(event.currentTarget)
+        this.log("Action: Next")
+      }
+
+      previous(event) {
+        this.triggerButton(event.currentTarget)
+        this.log("Action: Previous")
+      }
+
+      play(event) {
+        this.triggerButton(event.currentTarget)
+        this.log("Action: Play Music")
+      }
+
+      stop(event) {
+        this.triggerButton(event.currentTarget)
+        this.log("Action: Stop")
+      }
+
+      triggerButton(btn) {
+        btn.classList.add("triggered")
+        setTimeout(() => btn.classList.remove("triggered"), 300)
+      }
+
+      log(message, isError = false) {
+        const entry = document.createElement("div")
+        entry.className = "log-entry" + (isError ? " error" : "")
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`
+        this.logTarget.appendChild(entry)
+        this.logTarget.scrollTop = this.logTarget.scrollHeight
+      }
+    }
+
+    application.register("demo", DemoController)
+  </script>
+</body>
+</html>

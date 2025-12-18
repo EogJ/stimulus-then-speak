@@ -1,0 +1,50 @@
+{
+  "name": "stimulus-speak-then",
+  "version": "0.1.6",
+  "description": "Voice-controlled Stimulus actions using wake word detection",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./controller": "./src/controller.js",
+    "./models/*": "./models/*"
+  },
+  "files": [
+    "src",
+    "models",
+    "scripts"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "npx serve@latest -p 3000"
+  },
+  "keywords": [
+    "stimulus",
+    "hotwire",
+    "voice",
+    "speech",
+    "wake-word",
+    "onnx",
+    "rails"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EogJ/stimulus-then-speak.git"
+  },
+  "peerDependencies": {
+    "@hotwired/stimulus": ">=3.0.0"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.17.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "jsdom": "^25.0.0",
+    "@hotwired/stimulus": "^3.2.0"
+  }
+}
