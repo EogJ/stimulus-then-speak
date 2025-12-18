@@ -1,6 +1,6 @@
 {
   "name": "stimulus-speak-then",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Voice-controlled Stimulus actions using wake word detection",
   "main": "src/index.js",
   "module": "src/index.js",

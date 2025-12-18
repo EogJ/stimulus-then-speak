@@ -112,7 +112,8 @@ Use underscores for multi-word phrases:
      data-speak-then-sleep-value="5000"
      data-speak-then-models-path-value="/models"
      data-speak-then-wake-model-value="hey_jarvis_v0.1.onnx"
-     data-speak-then-lang-value="en-US">
+     data-speak-then-lang-value="en-US"
+     data-speak-then-debug-value="true">
 </div>
 ```
 
@@ -123,6 +124,7 @@ Use underscores for multi-word phrases:
 | `models-path` | `/models` | Path to ONNX model files |
 | `wake-model` | `hey_jarvis_v0.1.onnx` | Wake word model filename |
 | `lang` | `en-US` | Language for speech recognition (BCP 47 code) |
+| `debug` | `false` | Enable debug logging to console |
 
 ### Combining with click actions
 

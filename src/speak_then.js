@@ -5,11 +5,12 @@ const FRAME_SAMPLES = 1280
 const MELSPEC_WINDOW = 76
 
 class WakeWordDetector {
-  constructor(basePath, wakeModel, confidence, onError) {
+  constructor(basePath, wakeModel, confidence, onError, debug = false) {
     this.basePath = basePath
     this.wakeModel = wakeModel
     this.confidence = confidence
     this.onError = onError
+    this.debug = debug
     this.sessions = {}
     this.audioContext = null
     this.worklet = null
@@ -25,7 +26,12 @@ class WakeWordDetector {
     this.embInputBuffer = new Float32Array(16 * 96)
   }
 
+  log(...args) {
+    if (this.debug) console.log("[WakeWord]", ...args)
+  }
+
   async initialize() {
+    this.log("Initializing models from", this.basePath)
     const opts = { executionProviders: ["wasm"] }
 
     // Load all models in parallel for faster initialization
@@ -36,6 +42,7 @@ class WakeWordDetector {
     ])
 
     this.sessions = { mel, emb, wake }
+    this.log("Models loaded successfully")
   }
 
   async start(onDetection) {
@@ -43,14 +50,17 @@ class WakeWordDetector {
       throw new Error("WakeWordDetector already started. Call stop() first.")
     }
 
+    this.log("Starting wake word detection")
     this.onDetection = onDetection
     this.running = true
     this.melFrames = []
     this.embeddingBuffer = []
 
+    this.log("Requesting microphone access")
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { sampleRate: SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true }
     })
+    this.log("Microphone access granted")
 
     this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE })
 
@@ -131,6 +141,7 @@ class WakeWordDetector {
           const tensor = wake[outputKey]
           const tensorData = tensor.data ?? Object.values(tensor.cpuData)
           const score = tensorData[0]
+          if (score > 0.1) this.log("Wake score:", score.toFixed(3), score >= this.confidence ? "TRIGGERED" : "")
           if (score >= this.confidence) this.onDetection?.(score)
 
           if (this.embeddingBuffer.length > 32) this.embeddingBuffer = this.embeddingBuffer.slice(-16)
@@ -143,6 +154,7 @@ class WakeWordDetector {
   }
 
   stop() {
+    this.log("Stopping wake word detection")
     this.running = false
     this.initialized = false
     this.worklet?.disconnect()
@@ -150,8 +162,13 @@ class WakeWordDetector {
     this.stream?.getTracks().forEach(t => t.stop())
   }
 
-  pause() { this.running = false }
+  pause() {
+    this.log("Pausing wake word detection")
+    this.running = false
+  }
+
   resume() {
+    this.log("Resuming wake word detection, clearing buffers")
     // Clear buffers to avoid re-triggering on stale audio data
     this.melFrames = []
     this.embeddingBuffer = []
@@ -160,22 +177,29 @@ class WakeWordDetector {
 }
 
 class CommandRecognizer {
-  constructor(lang = "en-US", onError) {
+  constructor(lang = "en-US", onError, debug = false) {
     this.lang = lang
     this.onError = onError
+    this.debug = debug
     this.recognition = null
     this.commands = new Map()
     this.running = false
     this.onSpeech = null
   }
 
+  log(...args) {
+    if (this.debug) console.log("[Command]", ...args)
+  }
+
   register(phrase, element) {
     const key = phrase.toLowerCase()
     if (!this.commands.has(key)) this.commands.set(key, [])
     this.commands.get(key).push(element)
+    this.log("Registered command:", key)
   }
 
   start(onSpeech) {
+    this.log("Starting speech recognition")
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
       const error = new Error("Speech recognition not supported in this browser")
@@ -193,9 +217,11 @@ class CommandRecognizer {
 
     this.recognition.onresult = (e) => {
       const transcript = e.results[e.results.length - 1][0].transcript.trim().toLowerCase()
+      this.log("Heard:", transcript)
 
       for (const [phrase, elements] of this.commands) {
         if (transcript.includes(phrase)) {
+          this.log("Matched command:", phrase)
           elements.forEach(el => {
             el.dispatchEvent(new CustomEvent(`speak:${phrase}`, {
               bubbles: true,
@@ -230,6 +256,7 @@ class CommandRecognizer {
   }
 
   stop() {
+    this.log("Stopping speech recognition")
     this.running = false
     this.recognition?.stop()
   }
@@ -244,6 +271,7 @@ export default class SpeakThen {
       confidence: config.confidence || 0.5,
       sleepAfter: config.sleepAfter || 5000,
       lang: config.lang || "en-US",
+      debug: config.debug || false,
       onWake: config.onWake,
       onSleep: config.onSleep,
       onError: config.onError
@@ -255,16 +283,22 @@ export default class SpeakThen {
       this.config.basePath,
       this.config.wakeModel,
       this.config.confidence,
-      this.config.onError
+      this.config.onError,
+      this.config.debug
     )
-    this.commandRecognizer = new CommandRecognizer(this.config.lang, this.config.onError)
+    this.commandRecognizer = new CommandRecognizer(this.config.lang, this.config.onError, this.config.debug)
 
     this.discoverCommands()
   }
 
+  log(...args) {
+    if (this.config.debug) console.log("[SpeakThen]", ...args)
+  }
+
   discoverCommands() {
+    this.log("Discovering commands from data-action attributes")
     const elements = this.element.querySelectorAll("[data-action]")
-    
+
     elements.forEach(el => {
       const actions = el.dataset.action.split(/\s+/)
       actions.forEach(action => {
@@ -275,6 +309,7 @@ export default class SpeakThen {
         }
       })
     })
+    this.log("Commands discovered:", Array.from(this.commandRecognizer.commands.keys()))
   }
 
   async start() {
@@ -282,15 +317,25 @@ export default class SpeakThen {
       throw new Error("SpeakThen already started. Call stop() first.")
     }
 
+    this.log("Starting SpeakThen with config:", {
+      basePath: this.config.basePath,
+      wakeModel: this.config.wakeModel,
+      confidence: this.config.confidence,
+      sleepAfter: this.config.sleepAfter,
+      lang: this.config.lang
+    })
+
     await this.wakeDetector.initialize()
     await this.wakeDetector.start(() => {
       this.wake()
     })
     this.started = true
+    this.log("SpeakThen started, listening for wake word")
   }
 
   wake() {
     if (this.state === "awake") return
+    this.log("Waking up!")
     this.state = "awake"
     this.wakeDetector.pause()
     this.config.onWake?.()
@@ -305,6 +350,7 @@ export default class SpeakThen {
 
   sleep() {
     if (this.state === "sleeping") return
+    this.log("Going to sleep after", this.config.sleepAfter, "ms of silence")
     this.state = "sleeping"
     this.commandRecognizer.stop()
     this.config.onSleep?.()
@@ -312,6 +358,7 @@ export default class SpeakThen {
   }
 
   stop() {
+    this.log("Stopping SpeakThen")
     clearTimeout(this.sleepTimer)
     this.commandRecognizer.stop()
     this.wakeDetector.stop()

@@ -7,7 +7,8 @@ export default class extends Controller {
     sleep: { type: Number, default: 5000 },
     modelsPath: { type: String, default: "/models" },
     wakeModel: { type: String, default: "hey_jarvis_v0.1.onnx" },
-    lang: { type: String, default: "en-US" }
+    lang: { type: String, default: "en-US" },
+    debug: { type: Boolean, default: false }
   }
 
   static targets = ["indicator"]
@@ -19,6 +20,7 @@ export default class extends Controller {
       confidence: this.confidenceValue,
       sleepAfter: this.sleepValue,
       lang: this.langValue,
+      debug: this.debugValue,
       onWake: () => this.onWake(),
       onSleep: () => this.onSleep(),
       onError: (error) => this.onError(error)
